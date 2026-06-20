@@ -8,8 +8,19 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.ingestion.models import Document
 from src.pipeline.baseline import BaselineRAG
 
-def ingest_jsonl_corpus(jsonl_path: str, limit: int = 10000, batch_size: int = 100):
+def ingest_jsonl_corpus(jsonl_path: str, limit: int = 10000, batch_size: int = 100, skip: int = 0):
+    import time
+    import torch
+    
+    print("=== Hardware Check ===")
+    if torch.cuda.is_available():
+        print(f"GPU Detected: {torch.cuda.get_device_name(0)} (CUDA: True)")
+    else:
+        print("GPU Detected: None (Using CPU)")
+    print("======================\n")
+
     print(f"Initializing Baseline RAG Pipeline for massive ingestion...")
+    start_time = time.time()
     rag = BaselineRAG()
     
     print(f"Reading from: {jsonl_path}")
@@ -20,6 +31,11 @@ def ingest_jsonl_corpus(jsonl_path: str, limit: int = 10000, batch_size: int = 1
     batch = []
     
     with open(jsonl_path, 'r', encoding='utf-8') as f:
+        if skip > 0:
+            print(f"Fast-forwarding past the first {skip} documents...")
+            for _ in range(skip):
+                next(f)
+                
         for line in tqdm(f, desc="Processing JSONL", total=limit if limit else None):
             if not line.strip():
                 continue
@@ -44,11 +60,12 @@ def ingest_jsonl_corpus(jsonl_path: str, limit: int = 10000, batch_size: int = 1
     if batch:
         rag.ingest_documents(batch)
         
+    elapsed = time.time() - start_time
     print(f"Successfully ingested {count} documents into Qdrant Vector DB.")
+    print(f"Total time taken: {elapsed:.2f} seconds ({elapsed/60:.2f} minutes).")
 
 if __name__ == "__main__":
-    corpus_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'enterprise_corpus.jsonl'))
+    corpus_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'golden_subset.jsonl'))
     
-    # Process 10,000 files by default so we can test the evaluation script quickly
-    # To run on the full 2.4GB dataset, set limit=None
-    ingest_jsonl_corpus(corpus_path, limit=None)
+    # Process all documents in the lightweight subset
+    ingest_jsonl_corpus(corpus_path, limit=None, skip=29000)

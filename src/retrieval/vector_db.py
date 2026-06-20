@@ -4,7 +4,7 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 from typing import List, Dict, Any
 
 class VectorDB:
-    def __init__(self, path: str = "qdrant_data", collection_name: str = "baseline_rag_large"):
+    def __init__(self, path: str = "qdrant_data", collection_name: str = "baseline_rag"):
         self.client = QdrantClient(path=path)
         self.collection_name = collection_name
         self._ensure_collection()
@@ -15,7 +15,7 @@ class VectorDB:
         if not any(c.name == self.collection_name for c in collections):
             self.client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+                vectors_config=VectorParams(size=384, distance=Distance.COSINE),
             )
 
     def upsert_chunks(self, chunks: List[Any], embeddings: List[List[float]]):

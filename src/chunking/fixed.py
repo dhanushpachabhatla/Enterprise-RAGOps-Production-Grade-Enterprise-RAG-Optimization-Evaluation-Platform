@@ -23,7 +23,8 @@ class FixedTokenChunker:
             return []
             
         metadata = metadata or {}
-        tokens = self.tokenizer.encode(text)
+        # Disable special token checks so tiktoken doesn't crash on <|endoftext|> strings in the corpus
+        tokens = self.tokenizer.encode(text, disallowed_special=())
         
         chunks = []
         start = 0
