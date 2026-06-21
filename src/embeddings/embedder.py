@@ -6,7 +6,7 @@ class BGEEmbedder:
         # We load a local model for efficient embedding
         self.model = SentenceTransformer(model_name)
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, texts: List[str], batch_size: int = 128) -> List[List[float]]:
         """
         Takes a list of strings and returns their dense vector representations.
         For BGE models, standard queries might need instructions, but for documents we just embed.
@@ -15,8 +15,7 @@ class BGEEmbedder:
             return []
         
         # Output is typically a numpy array, convert to list of floats for qdrant
-        # We use batch_size=128 because bge-small is light enough to fit in 6GB VRAM
-        embeddings = self.model.encode(texts, batch_size=128, normalize_embeddings=True)
+        embeddings = self.model.encode(texts, batch_size=batch_size, normalize_embeddings=True)
         return embeddings.tolist()
         
     def embed_query(self, query: str) -> List[float]:

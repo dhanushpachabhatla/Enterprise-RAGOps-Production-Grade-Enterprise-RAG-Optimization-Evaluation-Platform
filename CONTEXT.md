@@ -34,7 +34,20 @@ src/
 - **Benchmark:** `all_documents/questions.jsonl` (500 questions).
 
 ## Current Metrics
-- **Recall@K & MRR**: Evaluation engine is built, true metrics pending user running the full dataset insertion via `scripts/embed_corpus.py`.
+Tested against 50,000 document subset using `BAAI/bge-small-en-v1.5`.
+
+| Metric | Baseline (Fixed 512) | Exp 1A (Semantic 512) | Exp 1B (Hierarchical 128) |
+|--------|----------------------|----------------------------|----------------------------|
+| **Recall@1** | 0.428 | 0.428 | 0.396 |
+| **Recall@5** | 0.556 | 0.548 | 0.538 |
+| **Recall@10** | 0.610 | **0.610** | 0.584 |
+| **Precision@5**| 0.1904 | **0.2144** | 0.1364 |
+| **NDCG@10** | 0.6097 | **0.6829** | 0.4521 |
+| **MRR** | 0.4831 | 0.4798 | 0.4548 |
+
+### Ablation Study Conclusion (Step 1)
+- **Winner**: Semantic Chunking (Exp 1A). It maximizes Ranking Quality (NDCG) without destroying the context window.
+- **Loser**: Hierarchical Chunking (Exp 1B). 128 tokens causes severe Context Fragmentation, destroying the Dense Vector's ability to understand the paragraph's overall meaning.
 
 ## Recent Changes
 - Completed Phase 3 Evaluation framework.

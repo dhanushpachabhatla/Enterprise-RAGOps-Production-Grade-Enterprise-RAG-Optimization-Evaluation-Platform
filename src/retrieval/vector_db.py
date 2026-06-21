@@ -4,8 +4,11 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 from typing import List, Dict, Any
 
 class VectorDB:
-    def __init__(self, path: str = "qdrant_data", collection_name: str = "baseline_rag"):
-        self.client = QdrantClient(path=path)
+    def __init__(self, path: str = "qdrant_data", collection_name: str = "baseline_rag", in_memory: bool = False):
+        if in_memory:
+            self.client = QdrantClient(location=":memory:")
+        else:
+            self.client = QdrantClient(path=path)
         self.collection_name = collection_name
         self._ensure_collection()
 

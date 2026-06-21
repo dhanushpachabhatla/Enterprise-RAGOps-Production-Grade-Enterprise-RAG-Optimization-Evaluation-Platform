@@ -6,9 +6,9 @@ from tqdm import tqdm
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.ingestion.models import Document
-from src.pipeline.baseline import BaselineRAG
+from src.pipeline.advanced import AdvancedRAG
 
-def ingest_jsonl_corpus(jsonl_path: str, limit: int = 10000, batch_size: int = 100, skip: int = 0):
+def ingest_advanced(jsonl_path: str, limit: int = None, batch_size: int = 100):
     import time
     import torch
     
@@ -19,26 +19,16 @@ def ingest_jsonl_corpus(jsonl_path: str, limit: int = 10000, batch_size: int = 1
         print("GPU Detected: None (Using CPU)")
     print("======================\n")
 
-    print(f"Initializing Baseline RAG Pipeline for massive ingestion...")
+    print(f"Initializing Advanced RAG Pipeline (Semantic Chunking + Hybrid BM25)")
     start_time = time.time()
-    rag = BaselineRAG()
+    rag = AdvancedRAG()
     
-    print(f"Reading from: {jsonl_path}")
-    if limit:
-        print(f"Limiting to first {limit} documents for this run to avoid extreme CPU time on local machine.")
-        
     count = 0
     batch = []
     
     with open(jsonl_path, 'r', encoding='utf-8') as f:
-        if skip > 0:
-            print(f"Fast-forwarding past the first {skip} documents...")
-            for _ in range(skip):
-                next(f)
-                
         for line in tqdm(f, desc="Processing JSONL", total=limit if limit else None):
-            if not line.strip():
-                continue
+            if not line.strip(): continue
                 
             data = json.loads(line)
             doc = Document(
@@ -60,12 +50,13 @@ def ingest_jsonl_corpus(jsonl_path: str, limit: int = 10000, batch_size: int = 1
     if batch:
         rag.ingest_documents(batch)
         
+    print("Finalizing Hybrid Ingestion (Building BM25 Index)...")
+    rag.finalize_ingestion()
+        
     elapsed = time.time() - start_time
-    print(f"Successfully ingested {count} documents into Qdrant Vector DB.")
+    print(f"Successfully ingested {count} documents into Hybrid DB.")
     print(f"Total time taken: {elapsed:.2f} seconds ({elapsed/60:.2f} minutes).")
 
 if __name__ == "__main__":
     corpus_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'golden_subset.jsonl'))
-    
-    # Process all documents in the lightweight subset
-    ingest_jsonl_corpus(corpus_path, limit=None)
+    ingest_advanced(corpus_path, limit=None)
