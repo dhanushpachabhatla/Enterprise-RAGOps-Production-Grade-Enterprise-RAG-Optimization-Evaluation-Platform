@@ -1,0 +1,9 @@
+{
+    "Total Questions": 500,
+    "Recall@1": 0.552,
+    "Recall@5": 0.692,
+    "Recall@10": 0.726,
+    "Precision@5": 0.178,
+    "NDCG@10": 0.6095,
+    "MRR": 0.6104
+}

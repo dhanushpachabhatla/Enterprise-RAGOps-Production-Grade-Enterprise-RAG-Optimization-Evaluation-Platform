@@ -3,6 +3,7 @@ all_documents/
 qdrant_data/
 enterprise_corpus.jsonl
 *.jsonl
+*.pkl
 baseline_eval_results.json
 
 # Environment
@@ -19,4 +20,4 @@ __pycache__/
 .vscode/
 .idea/
 
-problems.md
+# problems.md

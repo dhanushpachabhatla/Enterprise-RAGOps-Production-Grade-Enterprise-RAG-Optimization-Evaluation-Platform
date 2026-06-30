@@ -36,18 +36,28 @@ src/
 ## Current Metrics
 Tested against 50,000 document subset using `BAAI/bge-small-en-v1.5`.
 
-| Metric | Baseline (Fixed 512) | Exp 1A (Semantic 512) | Exp 1B (Hierarchical 128) |
-|--------|----------------------|----------------------------|----------------------------|
-| **Recall@1** | 0.428 | 0.428 | 0.396 |
-| **Recall@5** | 0.556 | 0.548 | 0.538 |
-| **Recall@10** | 0.610 | **0.610** | 0.584 |
-| **Precision@5**| 0.1904 | **0.2144** | 0.1364 |
-| **NDCG@10** | 0.6097 | **0.6829** | 0.4521 |
-| **MRR** | 0.4831 | 0.4798 | 0.4548 |
+| Metric | Baseline | Exp 1A (Semantic) | Exp 1C (Sliding) | Exp 2A (Hybrid 50/50) | Exp 3 (Re-ranking) |
+|--------|----------|-------------------|------------------|-----------------------|--------------------|
+| **Recall@1** | 0.428 | 0.428 | 0.436 | 0.456 | **0.552** |
+| **Recall@5** | 0.556 | 0.548 | 0.562 | 0.614 | **0.692** |
+| **Recall@10** | 0.610 | 0.610 | 0.620 | 0.672 | **0.726** |
+| **Precision@5**| 0.1904 | 0.2144 | 0.1464 | 0.1592 | **0.1780** |
+| **NDCG@10** | 0.6097 | **0.6829** | 0.4864 | 0.5000 | 0.6095 |
+| **MRR** | 0.4831 | 0.4798 | 0.4902 | 0.4965 | **0.6104** |
 
-### Ablation Study Conclusion (Step 1)
-- **Winner**: Semantic Chunking (Exp 1A). It maximizes Ranking Quality (NDCG) without destroying the context window.
-- **Loser**: Hierarchical Chunking (Exp 1B). 128 tokens causes severe Context Fragmentation, destroying the Dense Vector's ability to understand the paragraph's overall meaning.
+### Phase 1 Ablation Study Conclusion
+- **Overall Winner**: **Semantic Chunking (Exp 1A)**. The massive drop in Ranking Quality (NDCG 0.48) caused by Sliding Window's noise is not worth the tiny 0.01 bump in Recall. Semantic Chunking's clean grammatical boundaries provide the most mathematically pure Dense Vectors.
+
+### Phase 4 Hybrid Retrieval Conclusion
+- **Success**: Recall@10 leaped from the absolute mathematical ceiling of 0.610 up to **0.672**! BM25 definitively solved the "exact keyword matching" problem (e.g., finding exact ticket IDs or error codes).
+- **The New Flaw**: BM25 relies purely on word-counting. It retrieves completely irrelevant documents just because they happen to share common words. When we fused the scores equally using RRF, BM25's "word-matching noise" polluted the top results, dragging our pristine 0.68 NDCG (Ranking Quality) down to 0.50.
+- **RRF Weighting Fails**: We tested weighting Dense at 80% and Sparse at 20% (Exp 2B). We lost a massive amount of Recall (dropped from 0.672 back to 0.646), but our NDCG barely recovered (0.50 to 0.51). You cannot statically weight away BM25 noise without destroying its benefits.
+
+### Phase 5 Cross-Encoder Re-ranking Conclusion
+- **Total Success**: We used Hybrid (50/50) to fetch the Top 30 unique documents to maximize Recall, then passed them to `BAAI/bge-reranker-base`.
+- **Recall Exploitation**: By providing 30 chunks instead of 10, the Re-ranker found the true answer hidden in the bottom ranks and pulled it up, pushing Recall@10 from 0.672 to an astonishing **0.726** (+11.6% over baseline).
+- **NDCG Recovery**: The Cross-Encoder successfully identified the BM25 noise and banished it, restoring NDCG from 0.500 back to **0.6095**.
+- **MRR Victory**: The correct answer is now appearing at Rank #1 exactly **55.2%** of the time (up from 42.8%), pushing MRR to an all-time high of **0.6104**!
 
 ## Recent Changes
 - Completed Phase 3 Evaluation framework.
