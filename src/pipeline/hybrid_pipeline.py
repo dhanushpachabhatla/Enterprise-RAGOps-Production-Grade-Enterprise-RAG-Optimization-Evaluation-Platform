@@ -27,6 +27,17 @@ class HybridRetrievalPipeline:
             self.bm25_model = data["model"]
             self.bm25_payloads = data["payloads"]
             
+        # 3. Load doc_id -> source map for Sparse Post-Filtering
+        import json
+        self.doc_sources = {}
+        corpus_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'golden_subset.jsonl'))
+        if os.path.exists(corpus_path):
+            with open(corpus_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if not line.strip(): continue
+                    data = json.loads(line)
+                    self.doc_sources[data["doc_id"]] = data["source"]
+            
     def _rrf(self, dense_results: List[Dict], sparse_results: List[Dict], k: int = 60, alpha: float = 0.8) -> List[Dict]:
         """
         Reciprocal Rank Fusion (RRF) with weights.
@@ -56,24 +67,34 @@ class HybridRetrievalPipeline:
         
         return [payload_map[k] for k in sorted_keys]
 
-    def search(self, query: str, top_k: int = 10, fetch_k: int = 60, alpha: float = 0.8) -> List[Dict]:
+    def search(self, query: str, top_k: int = 10, fetch_k: int = 60, alpha: float = 0.8, qdrant_filter = None, source_filter: str = None) -> List[Dict]:
         """
         Fetches `fetch_k` from both dense and sparse, fuses them, and deduplicates to `top_k`.
+        Applies True Pre-Filtering to Dense Search (Qdrant), and Post-Filtering to Sparse Search (BM25).
         """
-        # 1. Dense Search
+        # 1. Dense Search (True Pre-Filtering at the Database Level!)
         query_vector = self.embedder.embed_query(query)
-        dense_results = self.vector_db.search(query_vector, top_k=fetch_k)
+        dense_results = self.vector_db.search(query_vector, top_k=fetch_k, query_filter=qdrant_filter)
         
-        # 2. Sparse Search
+        # 2. Sparse Search (BM25 does not support native pre-filtering, so we Post-Filter here)
         tokenized_query = query.lower().split(" ")
         sparse_scores = self.bm25_model.get_scores(tokenized_query)
-        top_sparse_indices = np.argsort(sparse_scores)[::-1][:fetch_k]
+        top_sparse_indices = np.argsort(sparse_scores)[::-1]
         
         sparse_results = []
         for idx in top_sparse_indices:
-            # Only include chunks that actually matched at least one token
+            if len(sparse_results) >= fetch_k:
+                break
             if sparse_scores[idx] > 0:
-                sparse_results.append(self.bm25_payloads[idx])
+                payload = self.bm25_payloads[idx]
+                
+                # Apply Sparse Post-Filtering if a source filter is provided
+                if source_filter:
+                    doc_source = self.doc_sources.get(payload["doc_id"])
+                    if doc_source != source_filter:
+                        continue # Skip this chunk!
+                
+                sparse_results.append(payload)
                 
         # 3. Fuse via RRF
         fused_chunks = self._rrf(dense_results, sparse_results, k=60, alpha=alpha)

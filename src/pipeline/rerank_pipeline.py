@@ -25,7 +25,7 @@ class RerankPipeline:
         print(f"Initializing Cross-Encoder (BAAI/bge-reranker-base) on {device.upper()}...")
         self.cross_encoder = CrossEncoder("BAAI/bge-reranker-base", device=device)
         
-    def search(self, query: str, top_k: int = 10, fetch_k: int = 60, alpha: float = 0.5) -> List[Dict]:
+    def search(self, query: str, top_k: int = 10, fetch_k: int = 60, alpha: float = 0.5, qdrant_filter = None, source_filter: str = None) -> List[Dict]:
         """
         1. Fetch top 30 from Hybrid Pipeline (with alpha=0.5 to maximize Recall)
         2. Score each chunk against the query using CrossEncoder.
@@ -33,7 +33,10 @@ class RerankPipeline:
         """
         # Step 1: Hybrid Retrieval. We ask for 30 unique documents so the reranker has a large pool to choose from.
         # We keep fetch_k at 60 (pulling 60 from Dense, 60 from Sparse to merge).
-        hybrid_results = self.hybrid_pipeline.search(query, top_k=30, fetch_k=fetch_k, alpha=alpha)
+        hybrid_results = self.hybrid_pipeline.search(
+            query, top_k=30, fetch_k=fetch_k, alpha=alpha, 
+            qdrant_filter=qdrant_filter, source_filter=source_filter
+        )
         
         if not hybrid_results:
             return []

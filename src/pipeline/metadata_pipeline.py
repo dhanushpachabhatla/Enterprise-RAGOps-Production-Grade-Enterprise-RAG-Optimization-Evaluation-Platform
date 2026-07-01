@@ -1,70 +1,56 @@
 import os
 import sys
+import json
 from typing import List, Dict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from src.pipeline.self_query_parser import SelfQueryParser
-from src.embeddings.embedder import BGEEmbedder
-from qdrant_client import QdrantClient
+from src.pipeline.rerank_pipeline import RerankPipeline
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 class MetadataPipeline:
     """
-    Phase 7: Metadata Filtering & Self-Query Retrieval.
-    Parses the user query to extract strict JSON metadata filters,
-    and applies them directly to Qdrant's search engine to prune the database.
+    Phase 7: True Pre-Filtering & Self-Query Retrieval.
+    Because we successfully patched Qdrant with the 'source' payload,
+    we can now pass Qdrant Filters all the way down into our Hybrid pipeline
+    so it physically ignores irrelevant documents during the Vector Search!
     """
     def __init__(self, qdrant_path: str = "qdrant_data"):
         self.parser = SelfQueryParser()
-        self.embedder = BGEEmbedder(model_name="BAAI/bge-small-en-v1.5")
         
-        # We need direct access to QdrantClient to build complex Filter objects
-        self.client = QdrantClient(path=qdrant_path)
-        self.collection_name = "semantic_rag"
+        # Use our absolute best Phase 5 architecture
+        self.rerank_pipeline = RerankPipeline(qdrant_path=qdrant_path, bm25_pkl_path="bm25_semantic_index.pkl")
         
     def search(self, query: str, top_k: int = 10, use_filtering: bool = True) -> List[Dict]:
-        print(f"\n[Metadata] Query: {query}")
         
+        target_source = None
         qdrant_filter = None
+        
         if use_filtering:
             # 1. Parse natural language into JSON filter
             metadata_filters = self.parser.parse_query(query)
-            print(f"[Metadata] Extracted Filters: {metadata_filters}")
-            
-            # 2. Convert JSON dictionary into Qdrant Filter Object
-            source = metadata_filters.get("source")
-            if source:
+            target_source = metadata_filters.get("source")
+            if target_source == "null":
+                target_source = None
+                
+            # 2. Build Qdrant Native Filter
+            if target_source:
                 qdrant_filter = Filter(
                     must=[
                         FieldCondition(
-                            # We stored the source under `metadata.source` in the payload during ingestion
-                            key="metadata.source", 
-                            match=MatchValue(value=source)
+                            key="source", 
+                            match=MatchValue(value=target_source)
                         )
                     ]
                 )
-                print(f"[Metadata] Applied strict Vector DB filter: source == '{source}'")
-            else:
-                print("[Metadata] No filters extracted. Running open vector search.")
         
-        # 3. Embed Query
-        query_emb = self.embedder.embed_query(query)
+        # 3. Native Pre-Filtering! 
+        # The Qdrant engine will eliminate bad docs BEFORE Reranking.
+        # We also pass source_filter in case Sparse (BM25) needs post-filtering
+        results = self.rerank_pipeline.search(
+            query, top_k=top_k, fetch_k=60, 
+            qdrant_filter=qdrant_filter, source_filter=target_source
+        )
         
-        # 4. Filtered Vector Search
-        results = self.client.query_points(
-            collection_name=self.collection_name,
-            query=query_emb,
-            query_filter=qdrant_filter, # The magic happens here!
-            limit=top_k
-        ).points
-        
-        return [
-            {
-                "score": hit.score,
-                "doc_id": hit.payload["doc_id"],
-                "text": hit.payload["text"],
-                "metadata": hit.payload["metadata"]
-            }
-            for hit in results
-        ]
+        return results

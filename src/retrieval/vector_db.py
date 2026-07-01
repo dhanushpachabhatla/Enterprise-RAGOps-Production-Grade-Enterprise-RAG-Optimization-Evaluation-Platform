@@ -51,10 +51,11 @@ class VectorDB:
             points=points
         )
 
-    def search(self, query_vector: List[float], top_k: int = 10) -> List[Dict[str, Any]]:
+    def search(self, query_vector: List[float], top_k: int = 10, query_filter = None) -> List[Dict[str, Any]]:
         results = self.client.query_points(
             collection_name=self.collection_name,
             query=query_vector,
+            query_filter=query_filter,
             limit=top_k
         ).points
         
