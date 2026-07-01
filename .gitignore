@@ -3,6 +3,7 @@ all_documents/
 qdrant_data/
 enterprise_corpus.jsonl
 *.jsonl
+*.json
 *.pkl
 baseline_eval_results.json
 
